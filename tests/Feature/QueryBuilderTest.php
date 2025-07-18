@@ -15,7 +15,10 @@ class QueryBuilderTest extends TestCase
     {
         parent::setUp();
         // Clear the categories table before each test
+        DB::delete('delete from products');
         DB::delete('delete from categories');
+
+        DB::delete('delete from counters');
     }
 
     public function testInsert()
@@ -186,5 +189,108 @@ class QueryBuilderTest extends TestCase
         $updatedCategory = DB::table('categories')->where('id', 'VOUCHER')->first();
         $this->assertEquals('Voucher', $updatedCategory->name, 'Expected category name to be updated');
         Log::info('Updated or inserted category: ' . json_encode($updatedCategory));
+    }
+
+    public function testIncrement()
+    {
+        // update counter tor 0 first 
+        DB::table('counters')->updateOrInsert(
+            ['id' => 'sample'],
+            ['counter' => 0]
+        );
+
+        // Increment the counter
+        DB::table('counters')->where('id', 'sample')->increment('counter', 1);
+
+        $updatedCounter = DB::table('counters')->where('id', 'sample')->first();
+        $this->assertEquals(1, $updatedCounter->counter, 'Expected counter to be incremented');
+        Log::info('Incremented counter: ' . json_encode($updatedCounter));
+    }
+
+    public function testDelete()
+    {
+        $this->testInsert(); // Ensure data is inserted first
+
+        // Delete a specific category
+        DB::table('categories')->where('id', 'GADGET')->delete();
+        $remainingCategories = DB::table('categories')->get();
+        $this->assertCount(3, $remainingCategories, 'Expected 3 categories after deletion');
+        Log::info('Remaining categories after deletion: ' . json_encode($remainingCategories));
+    }
+
+    public function insertProductTable()
+    {
+
+        $this->testInsert(); // Ensure categories are inserted first
+
+        DB::table('products')->insert([
+            'id' => 'P001',
+            'name' => 'Product 1',
+            'description' => 'Description for Product 1',
+            'price' => 100.00,
+            'category_id' => 'GADGET',
+            'created_at' => now()
+        ]);
+
+        DB::table('products')->insert([
+            'id' => 'P002',
+            'name' => 'Product 2',
+            'description' => 'Description for Product 2',
+            'price' => 200.00,
+            'category_id' => 'FOOD',
+            'created_at' => now()
+        ]);
+
+        DB::table('products')->insert([
+            'id' => 'P003',
+            'name' => 'Product 3',
+            'description' => 'Description for Product 3',
+            'price' => 300.00,
+            'category_id' => 'PHONE',
+            'created_at' => now()
+        ]);
+
+        DB::table('products')->insert([
+            'id' => 'P004',
+            'name' => 'Product 4',
+            'description' => 'Description for Product 4',
+            'price' => 400.00,
+            'category_id' => 'LAPTOP',
+            'created_at' => now()
+        ]);
+    }
+
+    public function testQueryBuilderJoin()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Join categories and products
+        $results = DB::table('categories')
+            ->join('products', 'categories.id', '=', 'products.category_id')
+            ->select('products.id', 'products.name', 'categories.name as category_name', 'products.price')
+            ->get();
+
+        $this->assertCount(4, $results, 'Expected 4 joined results');
+        Log::info('Joined results: ' . json_encode($results));
+    }
+
+    public function testOrderBy()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Order products by price
+        $orderedProducts = DB::table('products')->orderBy('price', 'asc')->get();
+        $this->assertCount(4, $orderedProducts, 'Expected 4 ordered products');
+        Log::info('Ordered products: ' . json_encode($orderedProducts));
+    }
+
+    public function testQueryBuilderTakeSkip()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Take 2 products and skip the first one
+        $pagedProducts = DB::table('products')->skip(1)->take(2)->get();
+        $this->assertCount(2, $pagedProducts, 'Expected 2 products after skip and take');
+        Log::info('Paged products: ' . json_encode($pagedProducts));
     }
 }
