@@ -8,6 +8,8 @@ use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\LazyCollection;
+use Traversable;
 
 class QueryBuilderTest extends TestCase
 {
@@ -322,5 +324,40 @@ class QueryBuilderTest extends TestCase
 
             $this->assertCount(10, $categories, 'Expected 10 categories in each chunk');
         });
+    }
+
+    public function testQueryBuilderLazyCollection()
+    {
+        $this->InsertManyCategorues(); // Ensure data is inserted first
+
+        // Use lazy collection to process categories
+        // Lazy is different from chunk, it does not load all data into memory at once
+        // It will load data in chunks of 100 by default
+        // You can specify the chunk size by passing an argument to lazy()
+        // For example, lazy(100) will load data in chunks of 100
+        // Lazy collection is useful for processing large datasets without loading all data into memory at once
+        // It will load data in chunks of 100 by default
+        $lazyCategories = DB::table('categories')->orderBy('id')->lazy(10)->take(10);
+        $this->assertInstanceOf(LazyCollection::class, $lazyCategories, 'Expected lazy collection instance');
+
+        $lazyCategories->each(function ($category) {
+            Log::info('Lazy Category: ' . json_encode($category));
+        });
+    }
+    public function testQueryBuilderCursor()
+    {
+        $this->InsertManyCategorues(); // Ensure data is inserted first
+
+        // Use cursor to process categories
+        // Cursor is similar to lazy collection, but it will load data in chunks of 100 by default
+        // It will load data in chunks of 100 by default
+        // You can specify the chunk size by passing an argument to cursor()
+        // For example, cursor(100) will load data in chunks of 100
+        $cursorCategories = DB::table('categories')->orderBy('id')->cursor();
+        $this->assertInstanceOf(Traversable::class, $cursorCategories, 'Expected cursor to be traversable');
+
+        foreach ($cursorCategories as $category) {
+            Log::info('Cursor Category: ' . json_encode($category));
+        }
     }
 }
