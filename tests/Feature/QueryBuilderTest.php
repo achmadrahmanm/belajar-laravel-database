@@ -452,4 +452,63 @@ class QueryBuilderTest extends TestCase
         $this->assertCount(0, $filteredCategories, 'Expected no categories with more than 1 product');
         Log::info('Filtered categories: ' . json_encode($filteredCategories));
     }
+
+    public function testQueryBuilderLocking()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Locking rows for update is useful in scenarios where you want to prevent other transactions from modifying the data until the current transaction is complete
+        // This is particularly useful in scenarios where you want to ensure data integrity during concurrent transactions
+        DB::beginTransaction();
+        $product = DB::table('products')->where('id', 'P001')->lockForUpdate()->first();
+        $this->assertNotNull($product, 'Expected product P001 to be locked for update');
+        Log::info('Locked product: ' . json_encode($product));
+
+        // Simulate some processing
+        sleep(1);
+
+        // Commit the transaction
+        DB::commit();
+    }
+
+    public function testQueryBuilderPagination()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Paginate products with 2 items per page
+        $paginatedProducts = DB::table('products')->paginate(perPage: 2);
+        $this->assertCount(2, $paginatedProducts->items(), 'Expected 2 products per page');
+        Log::info('Paginated products: ' . json_encode($paginatedProducts->items()));
+
+        $this->assertEquals(4, $paginatedProducts->total(), 'Expected total products to be 4');
+        $this->assertEquals(2, $paginatedProducts->perPage(), 'Expected 2 products per page');
+        $this->assertEquals(1, $paginatedProducts->currentPage(), 'Expected current page to be 1');
+        $this->assertEquals(2, $paginatedProducts->lastPage(), 'Expected last page to be 2');
+        $this->assertEquals(2, $paginatedProducts->count(), 'Expected 2 products on the current page');
+
+        // Check pagination links
+        $this->assertTrue($paginatedProducts->hasMorePages(), 'Expected more pages of products');
+    }
+
+    public function testQueryBuilderPaginationLoop()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+        $page = 1;
+
+        while (true) {
+            // Paginate products with 2 items per page
+            $paginatedProducts = DB::table('products')->paginate(perPage: 2, page: $page);
+            if (!$paginatedProducts->hasMorePages()) {
+                break;
+            } else {
+                $page++;
+
+                $collection = $paginatedProducts->items();
+                foreach ($collection as $product) {
+                    Log::info('Product: ' . json_encode($product));
+                };
+                $this->assertEquals(2, $paginatedProducts->perPage(), 'Expected 2 products per page');
+            }
+        }
+    }
 }
