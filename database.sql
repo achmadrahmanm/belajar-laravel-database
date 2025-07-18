@@ -1,0 +1,1 @@
+create database belajar_laravel_database;
