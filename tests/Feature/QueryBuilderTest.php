@@ -293,4 +293,34 @@ class QueryBuilderTest extends TestCase
         $this->assertCount(2, $pagedProducts, 'Expected 2 products after skip and take');
         Log::info('Paged products: ' . json_encode($pagedProducts));
     }
+
+    public function InsertManyCategorues()
+    {
+        for ($i = 1; $i <= 100; $i++) {
+            DB::table('categories')->insert([
+                'id' => 'CATEGORY_' . $i,
+                'name' => 'Category ' . $i,
+                'description' => 'Description for Category ' . $i,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+        $this->assertCount(100, DB::table('categories')->get(), 'Expected 100 categories to be inserted');
+    }
+
+    public function testQueryBuilderChunk()
+    {
+        $this->InsertManyCategorues(); // Ensure data is inserted first
+
+        // Chunk categories into groups of 10
+        DB::table('categories')->orderBy('id')->chunk(10, function ($categories) {
+            Log::info('Start Chunked categories: ' . json_encode($categories));
+            $categories->each(function ($category) {
+                Log::info('Category: ' . json_encode($category));
+            });
+            Log::info('End Chunked categories: ' . json_encode($categories));
+
+            $this->assertCount(10, $categories, 'Expected 10 categories in each chunk');
+        });
+    }
 }
