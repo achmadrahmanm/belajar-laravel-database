@@ -360,4 +360,96 @@ class QueryBuilderTest extends TestCase
             Log::info('Cursor Category: ' . json_encode($category));
         }
     }
+
+    public function testQueryBuilderAggregate()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Count total products
+        $totalProducts = DB::table('products')->count();
+        $this->assertEquals(4, $totalProducts, 'Expected 4 total products');
+
+        // Sum product prices
+        $totalPrice = DB::table('products')->sum('price');
+        $this->assertEquals(1000.00, $totalPrice, 'Expected total price to be 1000.00');
+
+        // Average product price
+        $averagePrice = DB::table('products')->avg('price');
+        $this->assertEquals(250.00, $averagePrice, 'Expected average price to be 250.00');
+
+        // Maximum product price
+        $maxPrice = DB::table('products')->max('price');
+        $this->assertEquals(400.00, $maxPrice, 'Expected maximum price to be 400.00');
+
+        // Minimum product price
+        $minPrice = DB::table('products')->min('price');
+        $this->assertEquals(100.00, $minPrice, 'Expected minimum price to be 100.00');
+
+        // Aggregate multiple columns
+        $aggregates = DB::table('products')->select(
+            DB::raw('count(*) as total_products'),
+            DB::raw('sum(price) as total_price'),
+            DB::raw('avg(price) as average_price'),
+            DB::raw('max(price) as max_price'),
+            DB::raw('min(price) as min_price')
+        )->first();
+
+        $this->assertEquals(4, $aggregates->total_products, 'Expected 4 total products');
+        $this->assertEquals(1000.00, $aggregates->total_price, 'Expected total price to be 1000.00');
+        $this->assertEquals(250.00, $aggregates->average_price, 'Expected average price to be 250.00');
+        $this->assertEquals(400.00, $aggregates->max_price, 'Expected maximum price to be 400.00');
+        $this->assertEquals(100.00, $aggregates->min_price, 'Expected minimum price to be 100.00');
+    }
+
+    public function testQueryBuilderRawAggregate()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Using raw expressions for aggregation
+        $totalProducts = DB::table('products')
+            ->select(
+                DB::raw('count(id) as total_products'),
+                DB::raw('min(price) as min_price'),
+                DB::raw('max(price) as max_price')
+            )->first();
+        $this->assertEquals(4, $totalProducts->total_products, 'Expected 4 total products');
+
+        // Using raw expressions for average
+        $averagePrice = DB::table('products')->select(DB::raw('AVG(price) as average_price'))->first();
+        $this->assertEquals(250.00, $averagePrice->average_price, 'Expected average price to be 250.00');
+    }
+
+    public function testQueryBuilderRawAggregateGroup()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Group by category and aggregate
+        $groupedProducts = DB::table('products')
+            ->select('category_id', DB::raw('count(*) as total_products'), DB::raw('sum(price) as total_price'))
+            ->groupBy('category_id')
+            ->get();
+
+        $this->assertCount(4, $groupedProducts, 'Expected 4 grouped categories');
+        Log::info('Grouped products: ' . json_encode($groupedProducts));
+
+        // Check specific category aggregates
+        $gadgetCategory = $groupedProducts->firstWhere('category_id', 'GADGET');
+        $this->assertEquals(1, $gadgetCategory->total_products, 'Expected 1 product in GADGET category');
+        $this->assertEquals(100.00, $gadgetCategory->total_price, 'Expected total price for GADGET to be 100.00');
+    }
+
+    public function testQueryBuilderRawAggregateHaving()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Group by category and filter using having
+        $filteredCategories = DB::table('products')
+            ->select('category_id', DB::raw('count(*) as total_products'), DB::raw('sum(price) as total_price'))
+            ->groupBy('category_id')
+            ->having('total_products', '>', 1)
+            ->get();
+
+        $this->assertCount(0, $filteredCategories, 'Expected no categories with more than 1 product');
+        Log::info('Filtered categories: ' . json_encode($filteredCategories));
+    }
 }
