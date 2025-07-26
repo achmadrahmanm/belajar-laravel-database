@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use Database\Seeders\CategorySeeder;
+use Database\Seeders\CounterSeeder;
+
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
@@ -9,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\LazyCollection;
+
 use Traversable;
+
+use function PHPUnit\Framework\assertNotNull;
 
 class QueryBuilderTest extends TestCase
 {
@@ -25,40 +31,9 @@ class QueryBuilderTest extends TestCase
 
     public function testInsert()
     {
-        DB::table('categories')->insert([
-            'id' => 'GADGET',
-            'name' => 'Gadget',
-            'description' => 'Gadget Category',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        $this->seed(CategorySeeder::class);
 
-        DB::table('categories')->insert([
-            'id' => 'FOOD',
-            'name' => 'Food',
-            'description' => 'Food Category',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        DB::table('categories')->insert([
-            'id' => 'PHONE',
-            'name' => 'Phone',
-            'description' => 'Phone Category',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        DB::table('categories')->insert([
-            'id' => 'LAPTOP',
-            'name' => 'Laptop',
-            'description' => 'Laptop Category',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        $results = DB::table('categories')->get();
-        $this->assertCount(4, $results, 'Expected 4 categories after insert');
+        $this->assertCount(4, DB::table('categories')->get(), 'Expected 4 categories after seed');
     }
 
     public function testSelect()
@@ -117,12 +92,12 @@ class QueryBuilderTest extends TestCase
         $this->testInsert(); // Ensure data is inserted first
 
         // Using whereBetween(column, [min, max])
-        $betweenCategories = DB::table('categories')->whereBetween('created_at', ['2025-07-18 17:16:51', '2025-07-20 17:17:17'])->get();
-        $this->assertCount(4, $betweenCategories, 'Expected 4 categories between 2025-07-18 17:16:51 and 2025-07-20 17:17:17');
+        $betweenCategories = DB::table('categories')->whereBetween('created_at', ['2025-07-18 17:16:51', '2025-07-31 17:17:17'])->get();
+        $this->assertCount(4, $betweenCategories, 'Expected 4 categories between 2025-07-18 17:16:51 and 2025-07-31 17:17:17');
 
         // Using whereNotBetween(column, [min, max])
-        $notBetweenCategories = DB::table('categories')->whereNotBetween('created_at', ['2025-07-18 17:16:51', '2025-07-20 17:17:17'])->get();
-        $this->assertCount(0, $notBetweenCategories, 'Expected no categories not between 2025-07-18 17:16:51 and 2025-07-20 17:17:17');
+        $notBetweenCategories = DB::table('categories')->whereNotBetween('created_at', ['2025-07-18 17:16:51', '2025-07-31 17:17:17'])->get();
+        $this->assertCount(0, $notBetweenCategories, 'Expected no categories not between 2025-07-18 17:16:51 and 2025-07-31 17:17:17');
     }
 
     public function testWhereIn()
@@ -195,11 +170,8 @@ class QueryBuilderTest extends TestCase
 
     public function testIncrement()
     {
-        // update counter tor 0 first 
-        DB::table('counters')->updateOrInsert(
-            ['id' => 'sample'],
-            ['counter' => 0]
-        );
+        // update counter tor 0 first
+        $this->seed(CounterSeeder::class);
 
         // Increment the counter
         DB::table('counters')->where('id', 'sample')->increment('counter', 1);
@@ -508,6 +480,37 @@ class QueryBuilderTest extends TestCase
                     Log::info('Product: ' . json_encode($product));
                 };
                 $this->assertEquals(2, $paginatedProducts->perPage(), 'Expected 2 products per page');
+            }
+        }
+    }
+
+    public function testQueryBuilderCursorPagination()
+    {
+        $this->insertProductTable(); // Ensure data is inserted first
+
+        // Cursor pagination is useful for large datasets where you want to load data in chunks
+        // It will load data in chunks of 100 by default
+        // You can specify the chunk size by passing an argument to cursor()
+        // For example, cursor(100) will load data in chunks of 100
+
+        $cursor = "id"; // Starting point for cursor pagination
+
+        while (true) {
+            // Paginate products with 2 items per page
+            $paginatedProducts = DB::table('products')->orderBy('id')->cursorPaginate(perPage: 2, cursor: $cursor);
+            if ($paginatedProducts->isEmpty()) {
+                break;
+            } else {
+                $cursor = $paginatedProducts->nextCursor(); // Get the next cursor for pagination
+
+                foreach ($paginatedProducts as $product) {
+                    $this->assertNotNull($product, 'Expected product to be not empty');
+                    Log::info('Cursor Product: ' . json_encode($product));
+                }
+            }
+            $cursor = $paginatedProducts->nextCursor();
+            if (!$cursor) {
+                break; // Exit loop if no more cursors
             }
         }
     }
